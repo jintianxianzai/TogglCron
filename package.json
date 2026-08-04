@@ -1,0 +1,8 @@
+{
+  "name": "toggl-notion-sync",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node sync.js"
+  }
+}
