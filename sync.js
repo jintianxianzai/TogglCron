@@ -14,7 +14,7 @@ async function getTogglSummary() {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      start_date: "2020-01-01",
+      start_date: "2026-08-04",
       end_date: new Date().toISOString().split('T')[0],
       grouping: "projects"
     })
