@@ -7,6 +7,9 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const togglAuth = Buffer.from(`${TOGGL_API_TOKEN}:api_token`).toString('base64');
 
 async function getTogglSummary() {
+  // Get today's date formatted as YYYY-MM-DD in local time
+  const today = new Date().toLocaleDateString('en-CA'); 
+
   const response = await fetch(`https://api.track.toggl.com/reports/api/v3/workspace/${TOGGL_WORKSPACE_ID}/summary/time_entries`, {
     method: 'POST',
     headers: {
@@ -14,8 +17,8 @@ async function getTogglSummary() {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      start_date: "2026-08-04",
-      end_date: new Date().toISOString().split('T')[0],
+      start_date: today,
+      end_date: today,
       grouping: "projects"
     })
   });
@@ -25,7 +28,6 @@ async function getTogglSummary() {
   }
 
   const data = await response.json();
-  // Map project names/IDs to total logged hours
   const projectHours = {};
   if (data.groups) {
     for (const group of data.groups) {
