@@ -80,12 +80,13 @@ async function runSync() {
   const notionPages = await getNotionPages();
 
   for (const page of notionPages) {
-    // Assuming Notion page title matches Toggl Project Name or toggl_project_id parameter
     const pageId = page.id;
     const togglProjectId = page.properties["Toggl Project ID"]?.number;
 
-    if (togglProjectId && togglSummary[togglProjectId] !== undefined) {
-      const hours = togglSummary[togglProjectId];
+    if (togglProjectId) {
+      // If the project ID isn't in Toggl's summary response, it means 0 hours were logged today
+      const hours = togglSummary[togglProjectId] ?? 0;
+      
       await updateNotionPage(pageId, hours);
       console.log(`Updated Page ID ${pageId} with ${hours} hours.`);
     }
