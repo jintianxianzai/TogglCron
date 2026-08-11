@@ -1,41 +1,36 @@
 const TOGGL_API_TOKEN = process.env.TOGGL_API_TOKEN;
-const TOGGL_WORKSPACE_ID = process.env.TOGGL_WORKSPACE_ID;
 const NOTION_KEY = process.env.NOTION_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 // Encode Basic Auth string for Toggl Track
 const togglAuth = Buffer.from(`${TOGGL_API_TOKEN}:api_token`).toString('base64');
 
-async function getTogglSummary() {
-  // Get today's date formatted as YYYY-MM-DD in local time
-  const today = new Date().toLocaleDateString('en-CA'); 
-
-  const response = await fetch(`https://api.track.toggl.com/reports/api/v3/workspace/${TOGGL_WORKSPACE_ID}/summary/time_entries`, {
-    method: 'POST',
+async function getTogglGoals() {
+  const response = await fetch(`https://api.track.toggl.com/api/v9/sync-server/me/goals`, {
+    method: 'GET',
     headers: {
       'Authorization': `Basic ${togglAuth}`,
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      start_date: today,
-      end_date: today,
-      grouping: "projects"
-    })
+    }
   });
 
   if (!response.ok) {
-    throw new Error(`Toggl API error: ${response.statusText}`);
+    throw new Error(`Toggl Goals API error: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  const projectHours = {};
-  if (data.groups) {
-    for (const group of data.groups) {
-      const totalSeconds = group.sub_groups?.reduce((acc, sg) => acc + (sg.seconds || 0), 0) || 0;
-      projectHours[group.id] = (totalSeconds / 3600).toFixed(2);
-    }
+  const goals = await response.json();
+  const goalMap = {};
+
+  for (const goal of goals) {
+    goalMap[goal.goal_id] = {
+      name: goal.name,
+      trackedHours: ((goal.current_recurrence_tracked_seconds || 0) / 3600).toFixed(2),
+      targetHours: ((goal.target_seconds || 0) / 3600).toFixed(2),
+      streak: goal.streak || 0
+    };
   }
-  return projectHours;
+
+  return goalMap;
 }
 
 async function getNotionPages() {
@@ -56,7 +51,31 @@ async function getNotionPages() {
   return data.results;
 }
 
-async function updateNotionPage(pageId, hours) {
+async function updateNotionGoalPage(pageId, goalData) {
+  const properties = {
+    // Updates the Page Title/Name property (Change "Name" if your Title column is named differently, e.g. "Goal Name")
+    "Name": {
+      title: [
+        {
+          text: {
+            content: goalData.name
+          }
+        }
+      ]
+    },
+    "Logged Hours": {
+      number: parseFloat(goalData.trackedHours)
+    }
+  };
+
+  // Optional: Update Target Hours and Streak if those columns exist in Notion
+  if (goalData.targetHours !== undefined) {
+    properties["Target Hours"] = { number: parseFloat(goalData.targetHours) };
+  }
+  if (goalData.streak !== undefined) {
+    properties["Streak"] = { number: parseInt(goalData.streak) };
+  }
+
   await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
     method: 'PATCH',
     headers: {
@@ -64,31 +83,25 @@ async function updateNotionPage(pageId, hours) {
       'Notion-Version': '2022-06-28',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      properties: {
-        "Logged Hours": {
-          number: parseFloat(hours)
-        }
-      }
-    })
+    body: JSON.stringify({ properties })
   });
 }
 
 async function runSync() {
-  console.log("Starting Toggl to Notion Sync...");
-  const togglSummary = await getTogglSummary();
+  console.log("Starting Toggl Goals to Notion Sync...");
+  const goalsMap = await getTogglGoals();
   const notionPages = await getNotionPages();
 
   for (const page of notionPages) {
     const pageId = page.id;
-    const togglProjectId = page.properties["Toggl Project ID"]?.number;
+    const togglGoalId = page.properties["Toggl Goal ID"]?.number;
 
-    if (togglProjectId) {
-      // If the project ID isn't in Toggl's summary response, it means 0 hours were logged today
-      const hours = togglSummary[togglProjectId] ?? 0;
-      
-      await updateNotionPage(pageId, hours);
-      console.log(`Updated Page ID ${pageId} with ${hours} hours.`);
+    if (togglGoalId && goalsMap[togglGoalId]) {
+      const goal = goalsMap[togglGoalId];
+      await updateNotionGoalPage(pageId, goal);
+      console.log(`Updated Goal Name "${goal.name}" (Page ID ${pageId}) with ${goal.trackedHours} hrs.`);
+    } else if (togglGoalId) {
+      console.log(`Goal ID ${togglGoalId} not found in active Toggl goals.`);
     }
   }
   console.log("Sync completed successfully.");
