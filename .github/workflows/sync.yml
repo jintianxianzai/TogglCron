@@ -1,7 +1,6 @@
 name: Toggl to Notion Sync
 
 on:
-  schedule:
   workflow_dispatch: # Allows Cron-job.org (and manual clicks) to trigger the workflow
 
 jobs:
