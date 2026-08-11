@@ -2,8 +2,7 @@ name: Toggl to Notion Sync
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Runs every five minutes automatically
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+  workflow_dispatch: # Allows Cron-job.org (and manual clicks) to trigger the workflow
 
 jobs:
   sync:
